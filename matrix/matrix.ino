@@ -5,15 +5,16 @@
 различные возможности отображения текста, символов, анимаций
 и специальных эффектов на светодиодной матрице.
 
-Версия - v1.6
+Версия - v1.6.1 
+-> ассинхронная бегущая трока
 */
 
 #include <FastLED.h>  // Подключаем библиотеку для управления светодиодной матрицей
 #include "letters.h"  // Подключаем заголовок с кодами символов, букв и картинок
 
-#define DATA_PIN 3      // Пин, к которому подключена матрица
-#define NUM_LEDS 256    // Количество светодиодов на матрице 16x16
-#define BRIGHTNESS 255  // Яркость (0-255)
+#define DATA_PIN 3     // Пин, к которому подключена матрица
+#define NUM_LEDS 256   // Количество светодиодов на матрице 16x16
+#define BRIGHTNESS 10  // Яркость (0-255)
 
 #define SIZE 16        // Размер матрицы
 #define LENGTH 8       // Количество бит при перерасчёте
@@ -24,11 +25,19 @@
 const String numberString = "0123456789 !,.:;?";                 // Строка для анализа символов
 const String letterString = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";  // Строка для анализа букв
 
-uint32_t color = 0x00FF00;  // Цвет светодиодов
+uint32_t color = 0x220000;  // Цвет светодиодов
 uint8_t grid[SIZE][2];      // Матрица светодиодов (по 2 байта на строку)
 
+int* res;
+int xStart;
+int yStart;
+int x;
+int y;
+int size;
+int tempSpeed;
+unsigned long runTextTime = 0;
+
 CRGB leds[NUM_LEDS];  // Массив с цветами светодиодов
-void add(uint8_t grid[SIZE][2], int n);
 
 void setup() {
   // put your setup code here, to run once:
@@ -61,16 +70,26 @@ void loop() {
   // }
 
   // Бегущая строка s с задержкой 200 мс
-  //String s = "ВИКА Я ТЕБЯ ЛЮБЛЮ!";
-  //runText(s, 18, 4, 100);
-
-  //Анимация сердца
-  for (int i = 0; i < 6; i++) {
-    clear();
-    add(grid, i);
-    animationRevers();
-    delay(50);
+  if (Serial.available() > 0) {
+    int c = Serial.parseInt();
+    if (c == 1) {
+      String s = "ЗАНЯТО";
+      runText(s, 18, 4, 100);
+    }else{
+      String s = "НЕТ";
+      runText(s, 18, 2, 50);
+    }
+    Serial.read();
   }
+
+  // Анимация сердца
+  // for (int i = 0; i < 6; i++) {
+  //   clear();
+  //   add(grid, i);
+  //   animationRevers();
+  //   delay(50);
+  //
+  runText();
 }
 
 /*
@@ -235,33 +254,37 @@ int* readText(String text) {
   int size = sizeText(text);
   return readText(text, size);
 }
-
-//Метод выполняющий операцию бегущей строки
 void runText(String text, int startX, int startY, int temp) {
-  int size = sizeText(text);
-  int* res = readText(text, size);
+  size = sizeText(text);
+  res = readText(text, size);
+  xStart = startX;
+  yStart = startY;
+  x = startX;
+  y = startY;
+  tempSpeed = temp;
+}
+
+void runText() {
   int del = 0;
-  int x = startX;
   int maxSize = 7 * size;
   int letter = 0;
   int past = 0;
-  while (true) {
+  if (millis() - runTextTime > tempSpeed) {
     clear();
     del = 0;
     for (int i = 0; i < size; i++) {
       if (x + del > SIZE)
         break;
       letter = res[i];                                //Получаем индекс
-      make(grid, letter, x + del, startY);            //Добавляем символ или букву
+      make(grid, letter, x + del, y);                 //Добавляем символ или букву
       past = pgm_read_byte(&letterSize[letter]) - 2;  //Получаем длину промежутка между буквами
       del += 7 + past;
     }
     animation();
-    delay(temp);
-    x--;  //Смещаем текст влево
+    x--;
     if (x < -maxSize) {
-      x = startX;
-      break;
+      x = xStart;
     }
+    runTextTime = millis();
   }
 }
